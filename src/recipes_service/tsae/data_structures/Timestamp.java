@@ -51,7 +51,7 @@ public class Timestamp implements Serializable{
 	}
 	
 	public boolean isNullTimestamp(){
-		return seqnumber == NULL_TIMESTAMP_SEQ_NUMBER;
+		return seqnumber < 0;
 	}
 	/**
 	 * Compares this timestamp to another one
