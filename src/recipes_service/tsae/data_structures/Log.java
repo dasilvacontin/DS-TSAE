@@ -23,10 +23,14 @@ package recipes_service.tsae.data_structures;
 import java.io.Serializable;
 import java.util.Enumeration;
 import java.util.Iterator;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.ListIterator;
+import java.util.Set;
 import java.util.Vector;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.BiConsumer;
+import java.util.function.Consumer;
 
 import edu.uoc.dpcs.lsim.LSimFactory;
 import lsim.worker.LSimWorker;
@@ -39,6 +43,7 @@ import recipes_service.data.Operation;
  */
 public class Log implements Serializable{
 	// Needed for the logging system sgeag@2017
+	@SuppressWarnings("unused")
 	private transient LSimWorker lsim = LSimFactory.getWorkerInstance();
 
 	private static final long serialVersionUID = -4864990265268259700L;
@@ -68,9 +73,24 @@ public class Log implements Serializable{
 	 * @return true if op is inserted, false otherwise.
 	 */
 	public boolean add(Operation op){
+		String hostid = op.getTimestamp().getHostid();
+		List<Operation> operations = log.get(hostid);
+
+		ListIterator<Operation> it = operations.listIterator();
+		Operation lastOp = null;
+		while (it.hasNext()) {
+			lastOp = it.next();
+		}
+		if (lastOp != null) {
+			Timestamp lastTs = lastOp.getTimestamp();
+			Timestamp newTs = op.getTimestamp();
+			if (lastTs.compare(newTs) > 0) {
+				return false;
+			}
+		}
 		
-		// return generated automatically. Remove it when implementing your solution 
-		return false;
+		it.add(op);
+		return true;
 	}
 	
 	/**
@@ -82,9 +102,17 @@ public class Log implements Serializable{
 	 * @return list of operations
 	 */
 	public List<Operation> listNewer(TimestampVector sum){
-		
-		// return generated automatically. Remove it when implementing your solution 
-		return null;
+		LinkedList<Operation> newerOperations = new LinkedList<Operation>();
+		ListIterator<Operation> newerOpsIt= newerOperations.listIterator();
+		log.forEach((BiConsumer<String, List<Operation>>) (node, nodeOps) -> {
+			Timestamp nodeSumTs = sum.getLast(node);
+			nodeOps.forEach((Consumer<Operation>) (nodeOp) -> {
+				if (nodeOp.getTimestamp().compare(nodeSumTs) > 0) {
+					newerOpsIt.add(nodeOp);
+				}
+			});
+		});
+		return newerOperations;
 	}
 	
 	/**
@@ -102,9 +130,42 @@ public class Log implements Serializable{
 	 */
 	@Override
 	public boolean equals(Object obj) {
+		if (this == obj)
+			return true;
+		if (obj == null)
+			return false;
+		if (getClass() != obj.getClass())
+			return false;
+		Log other = (Log) obj;
+
+		Set<String> thisNodes = log.keySet();
+		Set<String> otherNodes = other.log.keySet();
+		if (!thisNodes.equals(otherNodes))
+			return false;
+
+		// same keys, compare operations for each node now
+		// can't do equals directly on the map because it would compare
+		// the List references instead of their content
+		for (String node : log.keySet()) {
+			List<Operation> thisOps = log.get(node);
+			ListIterator<Operation> thisOpsIt = thisOps.listIterator();
+			List<Operation> otherOps = other.log.get(node);
+			ListIterator<Operation> otherOpsIt = otherOps.listIterator();
+
+			while (thisOpsIt.hasNext() || otherOpsIt.hasNext()) {
+				Operation thisOp = thisOpsIt.next();
+				Operation otherOp = otherOpsIt.next();
+				if (thisOp == null) {
+					// means this list of ops finished before the other one
+					return false;
+				}
+				if (!thisOp.equals(otherOp)) {
+					return false;
+				}
+			}
+		}
 		
-		// return generated automatically. Remove it when implementing your solution 
-		return false;
+		return true;
 	}
 
 	/**
