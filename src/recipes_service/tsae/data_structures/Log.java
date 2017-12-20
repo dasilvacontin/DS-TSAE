@@ -72,7 +72,7 @@ public class Log implements Serializable{
 	 * @param op
 	 * @return true if op is inserted, false otherwise.
 	 */
-	public boolean add(Operation op){
+	public synchronized boolean add(Operation op){
 		String hostid = op.getTimestamp().getHostid();
 		List<Operation> operations = log.get(hostid);
 
@@ -129,7 +129,7 @@ public class Log implements Serializable{
 	 * equals
 	 */
 	@Override
-	public boolean equals(Object obj) {
+	public synchronized boolean equals(Object obj) {
 		if (this == obj)
 			return true;
 		if (obj == null)
@@ -137,30 +137,32 @@ public class Log implements Serializable{
 		if (getClass() != obj.getClass())
 			return false;
 		Log other = (Log) obj;
+		
+		synchronized (other) {
+			Set<String> thisNodes = log.keySet();
+			Set<String> otherNodes = other.log.keySet();
+			if (!thisNodes.equals(otherNodes))
+				return false;
 
-		Set<String> thisNodes = log.keySet();
-		Set<String> otherNodes = other.log.keySet();
-		if (!thisNodes.equals(otherNodes))
-			return false;
+			// same keys, compare operations for each node now
+			// can't do equals directly on the map because it would compare
+			// the List references instead of their content
+			for (String node : log.keySet()) {
+				List<Operation> thisOps = log.get(node);
+				ListIterator<Operation> thisOpsIt = thisOps.listIterator();
+				List<Operation> otherOps = other.log.get(node);
+				ListIterator<Operation> otherOpsIt = otherOps.listIterator();
 
-		// same keys, compare operations for each node now
-		// can't do equals directly on the map because it would compare
-		// the List references instead of their content
-		for (String node : log.keySet()) {
-			List<Operation> thisOps = log.get(node);
-			ListIterator<Operation> thisOpsIt = thisOps.listIterator();
-			List<Operation> otherOps = other.log.get(node);
-			ListIterator<Operation> otherOpsIt = otherOps.listIterator();
-
-			while (thisOpsIt.hasNext() || otherOpsIt.hasNext()) {
-				Operation thisOp = thisOpsIt.next();
-				Operation otherOp = otherOpsIt.next();
-				if (thisOp == null) {
-					// means this list of ops finished before the other one
-					return false;
-				}
-				if (!thisOp.equals(otherOp)) {
-					return false;
+				while (thisOpsIt.hasNext() || otherOpsIt.hasNext()) {
+					Operation thisOp = thisOpsIt.next();
+					Operation otherOp = otherOpsIt.next();
+					if (thisOp == null) {
+						// means this list of ops finished before the other one
+						return false;
+					}
+					if (!thisOp.equals(otherOp)) {
+						return false;
+					}
 				}
 			}
 		}

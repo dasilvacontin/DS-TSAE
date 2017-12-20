@@ -65,7 +65,7 @@ public class TimestampVector implements Serializable {
 	 *
 	 * @param timestamp
 	 */
-	public void updateTimestamp(Timestamp timestamp) {
+	public synchronized void updateTimestamp(Timestamp timestamp) {
 		String hostid = timestamp.getHostid();
 		timestampVector.put(hostid, timestamp);
 	}
@@ -95,7 +95,7 @@ public class TimestampVector implements Serializable {
 	 *
 	 * @return the last timestamp issued by node that has been received.
 	 */
-	public Timestamp getLast(String node) {
+	public synchronized Timestamp getLast(String node) {
 		return timestampVector.get(node);
 	}
 
@@ -125,7 +125,7 @@ public class TimestampVector implements Serializable {
 	/**
 	 * clone
 	 */
-	public TimestampVector clone() {
+	public synchronized TimestampVector clone() {
 		TimestampVector another = new TimestampVector(Collections.emptyList());
 		another.timestampVector = new ConcurrentHashMap<>(timestampVector);
 		return another;
@@ -134,7 +134,7 @@ public class TimestampVector implements Serializable {
 	/**
 	 * equals
 	 */
-	public boolean equals(Object obj) {
+	public synchronized boolean equals(Object obj) {
 		if (this == obj)
 			return true;
 		if (obj == null)
@@ -142,7 +142,11 @@ public class TimestampVector implements Serializable {
 		if (getClass() != obj.getClass())
 			return false;
 		TimestampVector other = (TimestampVector) obj;
-		return timestampVector.equals(other.timestampVector);
+		// for each of the elements, `timestampVector.equals` will use
+		// the custom `equals` of the Timestamp class
+		synchronized (other) {
+			return timestampVector.equals(other.timestampVector);
+		}
 	}
 
 	/**
